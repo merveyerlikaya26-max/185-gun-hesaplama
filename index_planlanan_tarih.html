@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>185 Gün Hesaplama Modülü</title>
+<style>
+:root{
+  --bg:#f5f7fa; --card:#fff; --text:#101828; --muted:#667085;
+  --line:#e4e7ec; --dark:#101828; --ok:#067647; --bad:#b42318; --warn:#b54708;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);font-family:Arial,Helvetica,sans-serif;color:var(--text)}
+.wrap{max-width:900px;margin:32px auto;padding:0 16px 48px}
+h1{font-size:32px;margin:0 0 8px}
+.sub{color:var(--muted);line-height:1.6;margin-bottom:20px;font-size:17px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;margin-bottom:16px;font-size:17px}
+table{width:100%;border-collapse:collapse;margin-top:12px}
+th,td{padding:12px 10px;border-bottom:1px solid var(--line);text-align:left}
+th{font-size:14px;color:var(--muted);text-transform:uppercase}
+input[type=date],select{width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;background:#fff;font-size:16px}
+button{font:inherit}
+.btn{border:0;border-radius:10px;padding:12px 16px;cursor:pointer;font-weight:700;font-size:16px}
+.primary{background:var(--dark);color:#fff}
+.secondary{background:#eef2f6;color:#1d2939}
+.danger{background:#fff1f0;color:var(--bad);padding:7px 10px}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.result-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px}
+.metric{border:1px solid var(--line);border-radius:12px;padding:14px;background:#fafafa}
+.metric .k{font-size:12px;color:var(--muted);margin-bottom:6px}
+.metric .v{font-size:25px;font-weight:800}
+.status{margin-top:14px;padding:16px;border-radius:12px;font-weight:800;line-height:1.55}
+.ok{background:#ecfdf3;color:var(--ok);border:1px solid #abefc6}
+.bad{background:#fef3f2;color:var(--bad);border:1px solid #fecdca}
+.warn{background:#fffaeb;color:var(--warn);border:1px solid #fedf89}
+.note{font-size:15px;color:var(--muted);line-height:1.65}
+.bigdate{font-size:31px;font-weight:900;margin-top:5px}
+
+.official-disclaimer{
+  margin-top:14px;
+  color:#d92d20;
+  font-size:17px;
+  line-height:1.6;
+  font-weight:800;
+}
+@media(max-width:650px){.result-grid{grid-template-columns:1fr} h1{font-size:27px}.sub{font-size:16px}.note{font-size:15px}th{font-size:13px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>185 Gün Yurtdışı Yerleşiklik Hesaplama</h1>
+  <div class="sub">
+    Türkiye'ye <b>Giriş</b> ve Türkiye'den <b>Çıkış</b> tarihlerinizi girin. Ardından değerlendirmek istediğiniz <b>planlanan Türkiye'ye giriş tarihini</b> seçin. Sistem, o spesifik tarih itibarıyla son 365 gün içinde 185 gün şartının sağlanıp sağlanmadığını hesaplar.
+  </div>
+
+  <div class="card">
+    <b>Giriş / Çıkış Kayıtları</b>
+    <table>
+      <thead>
+        <tr><th>Tarih</th><th>İşlem</th><th></th></tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div class="actions">
+      <button class="btn secondary" onclick="addRow()">+ Kayıt Ekle</button>
+      <button class="btn primary" onclick="calculate()">Hesapla</button>
+      <button class="btn secondary" onclick="clearAll()">Temizle</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <b>Planlanan Türkiye'ye Giriş Tarihi</b>
+    <div style="margin-top:12px">
+      <input id="plannedDate" type="date">
+    </div>
+    <p class="note" style="margin-bottom:0">
+      Bu tarih için geriye doğru 365 günlük dönem incelenir ve yurtdışında geçirilen toplam gün sayısı hesaplanır.
+    </p>
+  </div>
+
+  <div class="card">
+    <b>Sonuç</b>
+    <div id="result" class="note" style="margin-top:12px">
+      Giriş/çıkış kayıtlarınızı ve planlanan giriş tarihini ekleyip “Hesapla” butonuna basın.
+    </div>
+  </div>
+
+
+
+  <div class="card">
+    <b>Önemli not</b>
+    <p class="note">
+      İlk kaydınız “Giriş” ise bu tarihten hemen önce yurtdışında; ilk kaydınız “Çıkış” ise bu tarihten hemen önce Türkiye'de olduğunuz kabul edilir.
+      Doğru sonuç için, mümkünse en az son 1 yılı kapsayan tüm giriş/çıkış hareketlerini girin.
+    </p>
+    <p class="note">
+      Planlanan giriş tarihi için geriye doğru 365 günlük dönem esas alınır. Son giriş/çıkış kaydınızdan planlanan tarihe kadar başka bir hareket girmediyseniz, son kayıttaki durumunuzun devam ettiği varsayılır.
+    </p>
+    <p class="note">
+      Son kaydınız “Çıkış” ise, bu tarihten sonra yurtdışında kalmaya devam ettiğiniz varsayılır ve ayrıca 185 günün ilk sağlanacağı tarih bilgi amaçlı gösterilir.
+    </p>
+
+    <p class="official-disclaimer">
+      Bu modül yalnızca bilgilendirme ve kişisel hesaplama amacıyla hazırlanmıştır. Modül tarafından üretilen sonuçların herhangi bir resmî veya hukuki bağlayıcılığı bulunmamaktadır. Kesin ve resmî değerlendirmelerde ilgili mevzuat ile yetkili kamu idarelerinin kayıt ve değerlendirmeleri esas alınır.
+    </p>
+  </div>
+</div>
+
+<script>
+const rows = document.getElementById('rows');
+
+function addRow(date='', type='entry'){
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><input type="date" value="${date}"></td>
+    <td>
+      <select>
+        <option value="entry" ${type==='entry'?'selected':''}>Giriş</option>
+        <option value="exit" ${type==='exit'?'selected':''}>Çıkış</option>
+      </select>
+    </td>
+    <td><button class="btn danger" onclick="this.closest('tr').remove()">Sil</button></td>`;
+  rows.appendChild(tr);
+}
+
+function clearAll(){
+  rows.innerHTML='';
+  addRow();
+  document.getElementById('plannedDate').value='';
+  document.getElementById('result').innerHTML='Giriş/çıkış kayıtlarınızı ve planlanan giriş tarihini ekleyip “Hesapla” butonuna basın.';
+}
+
+function parseDate(s){
+  const [y,m,d]=s.split('-').map(Number);
+  return new Date(y,m-1,d);
+}
+function addDays(d,n){
+  const x=new Date(d);
+  x.setDate(x.getDate()+n);
+  return x;
+}
+function fmt(d){
+  return d.toLocaleDateString('tr-TR',{day:'2-digit',month:'2-digit',year:'numeric'});
+}
+function getEvents(){
+  const out=[];
+  rows.querySelectorAll('tr').forEach(tr=>{
+    const date=tr.querySelector('input').value;
+    const type=tr.querySelector('select').value;
+    if(date) out.push({date:parseDate(date),type});
+  });
+  out.sort((a,b)=>a.date-b.date);
+  return out;
+}
+function inferInitialState(events){
+  return events[0].type==='entry' ? 'abroad' : 'turkey';
+}
+function stateAt(day,events,initialState){
+  let state=initialState;
+  for(const ev of events){
+    if(ev.date>day) break;
+    state = ev.type==='entry' ? 'turkey' : 'abroad';
+  }
+  return state;
+}
+function countWindow(calcDate,events,initialState){
+  const start=addDays(calcDate,-364);
+  let abroad=0;
+  for(let i=0;i<365;i++){
+    const d=addDays(start,i);
+    if(stateAt(d,events,initialState)==='abroad') abroad++;
+  }
+  return {start,end:calcDate,abroad,turkey:365-abroad};
+}
+function findQualification(events,initialState){
+  const last=events[events.length-1];
+  if(last.type!=='exit') return null;
+
+  for(let i=0;i<=1095;i++){
+    const d=addDays(last.date,i);
+    const c=countWindow(d,events,initialState);
+    if(c.abroad>=185) return {date:d,details:c};
+  }
+  return null;
+}
+
+function calculate(){
+  const result=document.getElementById('result');
+  const events=getEvents();
+  const plannedValue=document.getElementById('plannedDate').value;
+
+  if(events.length===0){
+    result.innerHTML='<div class="status warn">En az bir giriş/çıkış kaydı ekleyin.</div>';
+    return;
+  }
+  if(!plannedValue){
+    result.innerHTML='<div class="status warn">Lütfen planlanan Türkiye’ye giriş tarihini seçin.</div>';
+    return;
+  }
+  for(let i=1;i<events.length;i++){
+    if(events[i].date.getTime()===events[i-1].date.getTime()){
+      result.innerHTML='<div class="status warn">Aynı tarih için birden fazla kayıt bulundu. Lütfen kayıtları kontrol edin.</div>';
+      return;
+    }
+  }
+
+  const plannedDate=parseDate(plannedValue);
+  const initialState=inferInitialState(events);
+  const last=events[events.length-1];
+
+  if(plannedDate < last.date){
+    result.innerHTML='<div class="status warn">Planlanan giriş tarihi, son giriş/çıkış kaydınızdan önce olamaz.</div>';
+    return;
+  }
+
+  const plannedCount=countWindow(plannedDate,events,initialState);
+  const meets=plannedCount.abroad>=185;
+  const missing=Math.max(0,185-plannedCount.abroad);
+
+  let html=`
+    <div class="result-grid">
+      <div class="metric"><div class="k">Planlanan giriş tarihi</div><div class="v">${fmt(plannedDate)}</div></div>
+      <div class="metric"><div class="k">Son 365 günde yurtdışı</div><div class="v">${plannedCount.abroad} gün</div></div>
+      <div class="metric"><div class="k">Son 365 günde Türkiye</div><div class="v">${plannedCount.turkey} gün</div></div>
+    </div>`;
+
+  if(meets){
+    html += `<div class="status ok">✅ <b>${fmt(plannedDate)}</b> tarihi itibarıyla 185 gün şartı <b>SAĞLANIYOR.</b><div style="margin-top:6px">Yurtdışı süreniz: <b>${plannedCount.abroad} gün</b>.</div></div>`;
+  } else {
+    html += `<div class="status bad">❌ <b>${fmt(plannedDate)}</b> tarihi itibarıyla 185 gün şartı <b>SAĞLANMIYOR.</b><div style="margin-top:6px">Yurtdışı süreniz: <b>${plannedCount.abroad} gün</b>.</div><div>Eksik süre: <b>${missing} gün</b>.</div></div>`;
+  }
+
+  if(last.type==='exit'){
+    const qualification=findQualification(events,initialState);
+    if(qualification){
+      html += `<div class="status warn">Yurtdışında kalmaya devam ettiğiniz varsayımıyla 185 gün şartının ilk sağlanacağı tarih:<div class="bigdate">${fmt(qualification.date)}</div></div>`;
+    }
+  }
+
+  html += `<p class="note">Değerlendirilen 365 günlük dönem: <b>${fmt(plannedCount.start)} – ${fmt(plannedCount.end)}</b>.</p>`;
+  result.innerHTML=html;
+}
+addRow();
+</script>
+</body>
+</html>
