@@ -50,8 +50,7 @@ button{font:inherit}
 <div class="wrap">
   <h1>185 Gün Yurtdışı Yerleşiklik Hesaplama</h1>
   <div class="sub">
-    Sadece Türkiye'ye <b>Giriş</b> ve Türkiye'den <b>Çıkış</b> tarihlerinizi girin.
-    Sistem, son 365 günlük dönemleri otomatik hesaplayarak 185 gün şartını ilk sağlayacağınız tarihi bulur.
+    Türkiye'ye <b>Giriş</b> ve Türkiye'den <b>Çıkış</b> tarihlerinizi girin. Ardından değerlendirmek istediğiniz <b>yabancı plakalı taşıt ile planlanan Türkiye'ye giriş tarihini</b> seçin. Sistem, o spesifik tarih itibarıyla son 365 gün içinde 185 gün şartının sağlanıp sağlanmadığını hesaplar.
   </div>
 
   <div class="card">
@@ -70,9 +69,19 @@ button{font:inherit}
   </div>
 
   <div class="card">
+    <b>Yabancı Plakalı Taşıt ile Planlanan Türkiye'ye Giriş Tarihi</b>
+    <div style="margin-top:12px">
+      <input id="plannedDate" type="date">
+    </div>
+    <p class="note" style="margin-bottom:0">
+      Bu tarih için geriye doğru 365 günlük dönem incelenir ve yurtdışında geçirilen toplam gün sayısı hesaplanır.
+    </p>
+  </div>
+
+  <div class="card">
     <b>Sonuç</b>
     <div id="result" class="note" style="margin-top:12px">
-      Giriş/çıkış kayıtlarınızı ekleyip “Hesapla” butonuna basın.
+      Giriş/çıkış kayıtlarınızı ve planlanan giriş tarihini ekleyip “Hesapla” butonuna basın.
     </div>
   </div>
 
@@ -85,7 +94,7 @@ button{font:inherit}
       Doğru sonuç için, mümkünse en az son 1 yılı kapsayan tüm giriş/çıkış hareketlerini girin.
     </p>
     <p class="note">
-      Son kaydınız “Çıkış” ise, bu tarihten sonra yurtdışında kalmaya devam ettiğiniz varsayılır ve 185 günün ilk sağlanacağı tarih hesaplanır.
+      Yabancı plakalı taşıt ile planlanan Türkiye'ye giriş tarihi için geriye doğru 365 günlük dönem esas alınır. Son giriş/çıkış kaydınızdan planlanan tarihe kadar başka bir hareket girmediyseniz, son kayıttaki durumunuzun devam ettiği varsayılır.
     </p>
 
     <p class="official-disclaimer">
@@ -114,7 +123,8 @@ function addRow(date='', type='entry'){
 function clearAll(){
   rows.innerHTML='';
   addRow();
-  document.getElementById('result').innerHTML='Giriş/çıkış kayıtlarınızı ekleyip “Hesapla” butonuna basın.';
+  document.getElementById('plannedDate').value='';
+  document.getElementById('result').innerHTML='Giriş/çıkış kayıtlarınızı ve planlanan giriş tarihini ekleyip “Hesapla” butonuna basın.';
 }
 
 function parseDate(s){
@@ -174,12 +184,16 @@ function findQualification(events,initialState){
 function calculate(){
   const result=document.getElementById('result');
   const events=getEvents();
+  const plannedValue=document.getElementById('plannedDate').value;
 
   if(events.length===0){
     result.innerHTML='<div class="status warn">En az bir giriş/çıkış kaydı ekleyin.</div>';
     return;
   }
-
+  if(!plannedValue){
+    result.innerHTML='<div class="status warn">Lütfen planlanan Türkiye’ye giriş tarihini seçin.</div>';
+    return;
+  }
   for(let i=1;i<events.length;i++){
     if(events[i].date.getTime()===events[i-1].date.getTime()){
       result.innerHTML='<div class="status warn">Aynı tarih için birden fazla kayıt bulundu. Lütfen kayıtları kontrol edin.</div>';
@@ -187,40 +201,35 @@ function calculate(){
     }
   }
 
+  const plannedDate=parseDate(plannedValue);
   const initialState=inferInitialState(events);
   const last=events[events.length-1];
-  const lastCount=countWindow(last.date,events,initialState);
-  const qualification=findQualification(events,initialState);
+
+  if(plannedDate < last.date){
+    result.innerHTML='<div class="status warn">Planlanan giriş tarihi, son giriş/çıkış kaydınızdan önce olamaz.</div>';
+    return;
+  }
+
+  const plannedCount=countWindow(plannedDate,events,initialState);
+  const meets=plannedCount.abroad>=185;
+  const missing=Math.max(0,185-plannedCount.abroad);
 
   let html=`
     <div class="result-grid">
-      <div class="metric"><div class="k">Son kayıt tarihi</div><div class="v">${fmt(last.date)}</div></div>
-      <div class="metric"><div class="k">Son durum</div><div class="v">${last.type==='exit'?'Yurtdışında':'Türkiye’de'}</div></div>
-      <div class="metric"><div class="k">Son kayıt tarihinde yurtdışı</div><div class="v">${lastCount.abroad} gün</div></div>
-    </div>
-  `;
+      <div class="metric"><div class="k">Planlanan giriş tarihi</div><div class="v">${fmt(plannedDate)}</div></div>
+      <div class="metric"><div class="k">Son 365 günde yurtdışı</div><div class="v">${plannedCount.abroad} gün</div></div>
+      <div class="metric"><div class="k">Son 365 günde Türkiye</div><div class="v">${plannedCount.turkey} gün</div></div>
+    </div>`;
 
-  if(last.type==='exit'){
-    if(qualification){
-      html += `
-        <div class="status ok">
-          185 gün şartını sağlayacağınız ilk tarih:
-          <div class="bigdate">${fmt(qualification.date)}</div>
-          Bu tarihte son 365 gün içindeki yurtdışı süreniz <b>${qualification.details.abroad} gün</b> olacaktır.
-        </div>`;
-    } else {
-      html += `<div class="status warn">Mevcut kayıtlara göre 185 günün sağlanacağı tarih hesaplanamadı. Kayıtları kontrol edin.</div>`;
-    }
+  if(meets){
+    html += `<div class="status ok">✅ <b>${fmt(plannedDate)}</b> tarihi itibarıyla 185 gün şartı <b>SAĞLANIYOR.</b><div style="margin-top:6px">Yurtdışı süreniz: <b>${plannedCount.abroad} gün</b>.</div></div>`;
   } else {
-    html += `
-      <div class="status warn">
-        Son kaydınız “Giriş”. Gelecekte 185 günü hangi tarihte sağlayacağınızı hesaplamak için bir sonraki “Çıkış” tarihinizi de girmeniz gerekir.
-      </div>`;
+    html += `<div class="status bad">❌ <b>${fmt(plannedDate)}</b> tarihi itibarıyla 185 gün şartı <b>SAĞLANMIYOR.</b><div style="margin-top:6px">Yurtdışı süreniz: <b>${plannedCount.abroad} gün</b>.</div><div>Eksik süre: <b>${missing} gün</b>.</div></div>`;
   }
 
+  html += `<p class="note">Değerlendirilen 365 günlük dönem: <b>${fmt(plannedCount.start)} – ${fmt(plannedCount.end)}</b>.</p>`;
   result.innerHTML=html;
 }
-
 addRow();
 </script>
 </body>
